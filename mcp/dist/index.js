@@ -21410,17 +21410,12 @@ var secretMarker = require3(join2(__dirname2, "../../skills/browsing/lib/secret-
 var sensitiveUrl2 = require3(join2(__dirname2, "../../skills/browsing/lib/sensitive-url.js"));
 var capturePause2 = require3(join2(__dirname2, "../../skills/browsing/lib/capture-pause.js"));
 var SERVER_VERSION = require3(join2(__dirname2, "../package.json")).version;
-async function tabContentIsSensitive(tabIndex, url, type) {
-  if (credentialGuard2.credentialCaptureAllowed()) return false;
-  if (sensitiveUrl2.urlLooksSensitive(url)) return true;
-  if (type && type !== "page") return false;
-  try {
-    const ps = await chromeLib.getPageSession(tabIndex);
-    return await secretMarker.pageHasSecretMarker(ps);
-  } catch {
-    return false;
-  }
-}
+var { tabContentIsSensitive } = require3(join2(__dirname2, "../../skills/browsing/lib/tab-sensitivity.js")).attachTabSensitivity({
+  credentialCaptureAllowed: credentialGuard2.credentialCaptureAllowed,
+  urlLooksSensitive: sensitiveUrl2.urlLooksSensitive,
+  getPageSession: chromeLib.getPageSession,
+  pageHasSecretMarker: secretMarker.pageHasSecretMarker
+});
 function hasDisplay() {
   const platform = process.platform;
   if (platform === "darwin") {

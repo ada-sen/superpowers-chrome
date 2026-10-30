@@ -50,28 +50,21 @@ const sensitiveUrl = require(join(__dirname, "../../skills/browsing/lib/sensitiv
 const capturePause = require(join(__dirname, "../../skills/browsing/lib/capture-pause.js"));
 const SERVER_VERSION = require(join(__dirname, "../package.json")).version;
 
-// PRI-3265 (child): list_tabs/switch_tab must not echo the title or URL of
-// a tab whose page carries the data-sen-secret marker or whose URL matches
-// sensitive-url.js's known-sensitive pattern list -- the same two signals
-// eval/extract/attr/screenshot already gate on, here checked for a tab that
-// need not be the active one. `type` lets a non-'page' target (a
-// service_worker/background_page has no document to query) skip straight to
-// the URL-only check rather than fail a Runtime.evaluate call that was never
-// going to resolve. On any error getting/querying the page session (a tab
-// that closed between getTabs() and here, say) this falls back to NOT
-// sensitive -- the url check above still applies, and a transient CDP
-// hiccup here must not make every tab unlisted.
-async function tabContentIsSensitive(tabIndex: number, url: string | undefined, type?: string): Promise<boolean> {
-  if (credentialGuard.credentialCaptureAllowed()) return false;
-  if (sensitiveUrl.urlLooksSensitive(url)) return true;
-  if (type && type !== 'page') return false;
-  try {
-    const ps = await chromeLib.getPageSession(tabIndex);
-    return await secretMarker.pageHasSecretMarker(ps);
-  } catch {
-    return false;
-  }
-}
+// PRI-3265 (child, PR #70): list_tabs/switch_tab must not echo the title or
+// URL of a tab whose page carries the data-sen-secret marker or whose URL
+// matches sensitive-url.js's known-sensitive pattern list -- the same two
+// signals eval/extract/attr/screenshot already gate on, here checked for a
+// tab that need not be the active one. navigate's and formatActionResponse's
+// "Current URL:" lines reuse the same check. Split out into its own
+// injected-dependency module (tab-sensitivity.js) so its fail-closed
+// behavior on a CDP error is unit-testable with a stub -- see that file for
+// the full doc comment.
+const { tabContentIsSensitive } = require(join(__dirname, "../../skills/browsing/lib/tab-sensitivity.js")).attachTabSensitivity({
+  credentialCaptureAllowed: credentialGuard.credentialCaptureAllowed,
+  urlLooksSensitive: sensitiveUrl.urlLooksSensitive,
+  getPageSession: chromeLib.getPageSession,
+  pageHasSecretMarker: secretMarker.pageHasSecretMarker,
+});
 
 /**
  * Detect if a display is available for headed browser mode.
